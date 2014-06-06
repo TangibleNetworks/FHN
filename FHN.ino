@@ -5,9 +5,27 @@
 // Fitzhugh-Nagumo (FHN) model of neuronal spiking.
 // The FHN model is a two-dimensional simplification of the Hodgkin-Huxley model.
 // 
-// #TODO: Write some other description bits.
+// Nodes in isolation (basic features):
+// - Push-button will pause the simultion in the current state while it is held down
+// - Pot will adjust the input current ('forcing'/activation) for an individual node
+// Nodes will not intrinsically spike. However once the input current is above a 
+// threshold, they will move into a spiking regime. As the current is further increased,
+// the system will eventually saturate and stop spiking, reaching a second stable state.
 //
-// See for example 
+// Each node will by default broadcast to its outputs. Only connceted inputs will receive
+// a signal from neighbour nodes. Coupling is set to zero by defualt and so effects of
+// coupling nodes together will only become visible if the master controller is connected
+// somewhere.
+//
+// Connected nodes, basic behaviour:
+// - Master controller changes coupling parameter k from -0.5 to +0.5
+// - Positive values of k will induce synchronisation between connected nodes, IF a node is
+//   already spiking
+// - Negative values of k will induce synchronisation in anti-phase. This can induce spiking
+//   even if none of the nodes have any intrinsic per-node current input (local Pot = 0)
+// - Coupling between nodes can be uni- or bi-directional, depending on the desired effect.
+//
+// For further details, see for example 
 // - Keener/Sneyd "Mathematical Physiology" 2ed; Springer
 // - http://www.scholarpedia.org/article/FitzHugh-Nagumo_model
 // - http://en.wikipedia.org/wiki/FitzHugh%E2%80%93Nagumo_model
@@ -27,7 +45,7 @@ double beta = 0.8;        //
 // ---------- COUPLING
 double k = 0.0;                  // Global coupling parameter used for diffusive coupling 
                                  // between neighbouring nodes.
-double kRange[] = {0.0, 1.0};   // Range of the global coupling parameter k 
+double kRange[] = {-0.5, 0.5};   // Range of the global coupling parameter k 
 int nConnections = 0;            // Number of connected nodes
 double vInput = 0;               // Total input voltage to this node from its neighbours
 
@@ -35,7 +53,7 @@ double vInput = 0;               // Total input voltage to this node from its ne
 double v[] = {1.0, 0.1};          // Current value of the two dynamic variables
                                   // (in the equations 'V' = v[0], 'W' = v[1])
 double vOld[] = {1.0, 0.1};       // Previous value of the two dynamic variables
-double vRange[] = {-2.2, 2.2};    // Range of 'V' within which to constrain (for colouring etc)
+double vRange[] = {-3.0, 3.0};    // Range of 'V' within which to constrain (for colouring etc)
 
 double dt = 0.05;  // Timestep for Euler integrator
 
@@ -45,7 +63,11 @@ double dt = 0.05;  // Timestep for Euler integrator
 // the range of analogRead() and analogWrite(): values outside of this
 // range will be clipped! So these will need #TODO to be adjusted once we are
 // coupling multiple nodes together.
-TN Tn = TN(-2.5, 2.5);
+TN Tn = TN(-3.5, 3.5);
+
+// ---------- STATUS CONTROL
+// DIP 1 controls the behaviour of the push-button switch
+boolean simPaused = false;
 
 
 void setup () {
@@ -53,10 +75,14 @@ void setup () {
   Serial.begin(115200);
 }
 
+
 void loop () {
+  // Check the status of DIP 1 and adjust functionality of 
+  // the push-button switch as necessary
+  // TODO implement this as it keeps breaking on (other) tests so far.
+  
   // If the push-button switch is pressed in then do nothing, 
   // else iterate the simulation
-  
   if (!Tn.sw()) {
     // Set up the coupling parameter k
     if (Tn.masterConnected()) {
@@ -66,7 +92,7 @@ void loop () {
     } else {
       // This will result in zero coupling strength if the kRange is
       // From [-1.0 to 1.0] rather than from [0.0 to 1.0]...!
-      k = kRange[0] + (kRange[1] - kRange[0])*0.5;
+      k = 0.0;//kRange[0] + (kRange[1] - kRange[0])*0.5;
     }
     
     // update the previous V values
@@ -108,13 +134,33 @@ void loop () {
     Tn.analogWrite(i + 1, v[0]);
   }
   
-  // Glow red for high voltage, dark for low voltage.
+  // Glow red for high voltage, dark (slightly blue) for low voltage.
   // Artistic license... We will normalise and square the voltage for
   // a prettier effect.
   Tn.colour(pow((v[0] - vRange[0])/(vRange[1] - vRange[0]), 2),
     	      0.0,
     	      0.15);
    
-   //Serial.println((v[0] + 2.5)/(5));
+   //Serial.println(v[0]);
+   //printSOI();
    //delay(5);
+}
+
+void printSOI() {
+  Serial.print("*Inputs*");
+  for (int i = 1; i <= 3; i++) {
+    Serial.print(" ");
+    Serial.print(Tn.isConnected(i));
+    Serial.print("|");
+    Serial.print(Tn.analogRead(i));
+  }
+  
+  Serial.print(" *DIP* ");
+  Serial.print(Tn.dip1());
+  Serial.print("|");
+  Serial.print(Tn.dip2());
+  Serial.print("|"); 
+  Serial.print(Tn.dip3());
+  
+  Serial.println();
 }
