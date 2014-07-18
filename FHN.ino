@@ -1,4 +1,4 @@
-// FHN.ino - 29/05/2014
+// FHN.ino - 18/07/2014
 // Tangible Networks
 // Antos
 //
@@ -12,7 +12,7 @@
 // threshold, they will move into a spiking regime. As the current is further increased,
 // the system will eventually saturate and stop spiking, reaching a second stable state.
 //
-// Each node will by default broadcast to its outputs. Only connceted inputs will receive
+// Each node will by default broadcast to its outputs. Only connected inputs will receive
 // a signal from neighbour nodes. Coupling is set to zero by defualt and so effects of
 // coupling nodes together will only become visible if the master controller is connected
 // somewhere.
@@ -53,7 +53,7 @@ double vInput = 0;               // Total input voltage to this node from its ne
 double v[] = {1.0, 0.1};          // Current value of the two dynamic variables
                                   // (in the equations 'V' = v[0], 'W' = v[1])
 double vOld[] = {1.0, 0.1};       // Previous value of the two dynamic variables
-double vRange[] = {-3.0, 3.0};    // Range of 'V' within which to constrain (for colouring etc)
+double vRange[] = {-2.2, 3.0};    // Range of 'V' within which to constrain (for colouring etc)
 
 double dt = 0.05;  // Timestep for Euler integrator
 
@@ -65,68 +65,68 @@ double dt = 0.05;  // Timestep for Euler integrator
 // coupling multiple nodes together.
 TN Tn = TN(-3.5, 3.5);
 
-// ---------- STATUS CONTROL
-// DIP 1 controls the behaviour of the push-button switch
-boolean simPaused = false;
+// ---------- OUTPUT
+double out = 0.0;
 
+// ---------- SOUND FROM PIEZO
+byte dipBitMap = 0;
+double cMajor[] = {261.626, 293.665, 329.628, 349.228, 391.995, 440, 493.883};
 
 void setup () {
   // Initialise the serial output port for logging etc.
-  Serial.begin(115200);
+  //Serial.begin(115200);
+  
+  pinMode(AUX_OUT, OUTPUT);
 }
 
 
 void loop () {
-  // Check the status of DIP 1 and adjust functionality of 
-  // the push-button switch as necessary
-  // TODO implement this as it keeps breaking on (other) tests so far.
+  // Set up the coupling parameter k
+  if (Tn.masterConnected()) {
+    // Choose coupling strength based on the global potentiometer
+    // state and the range of possible k values
+    k = kRange[0] + (kRange[1] - kRange[0])*Tn.masterRead();
+  } else {
+    // This will result in zero coupling strength if the kRange is
+    // From [-1.0 to 1.0] rather than from [0.0 to 1.0]...!
+    k = 0.0;//kRange[0] + (kRange[1] - kRange[0])*0.5;
+  }
   
-  // If the push-button switch is pressed in then do nothing, 
-  // else iterate the simulation
-  if (!Tn.sw()) {
-    // Set up the coupling parameter k
-    if (Tn.masterConnected()) {
-      // Choose coupling strength based on the global potentiometer
-      // state and the range of possible k values
-      k = kRange[0] + (kRange[1] - kRange[0])*Tn.masterRead();
-    } else {
-      // This will result in zero coupling strength if the kRange is
-      // From [-1.0 to 1.0] rather than from [0.0 to 1.0]...!
-      k = 0.0;//kRange[0] + (kRange[1] - kRange[0])*0.5;
-    }
-    
-    // update the previous V values
-    for (int i = 0; i < 2; i++) {
-      vOld[i] = v[i];
-    }
-    
+  // update the previous V values
+  for (int i = 0; i < 2; i++) {
+    vOld[i] = v[i];
+  }
+  
+  if(!Tn.sw()){
     // Set the current (param 'I') using the potentiometer input
     // Tn.pot() returns a double between 0.0 (full CCW) and 1.0 (full CW).
     I = Tn.pot()*IMax;
-    
-    // Compute the input voltage from connected neighbours (if any)
-    // vInput = (k / N) * \sum_j (v_j - v_i)
-    // where k = global coupling strength
-    //       N = num connected neighbours,
-    //       i = current node
-    //       j = neighbour node
-    //       v = voltage (v[0])
-    nConnections = 0;
-    vInput = 0;
-    for (int i = 0; i < 3; i++) {
-      if (Tn.isConnected(i + 1)) {
-        vInput = vInput + (Tn.analogRead(i + 1) - vOld[0]);
-        nConnections++;
-      }
-    }
-    if (nConnections > 0) {
-      vInput = k*vInput/nConnections;
-    }
-    
-    // Forward Euler
-    v[0] = vOld[0] + dt*(vOld[0] - (pow(vOld[0], 3.0))/3.0 - vOld[1] + I + vInput);
-    v[1] = vOld[1] + dt*(tauR*(vOld[0] + alpha - beta*vOld[1]));
+  } else {
+    I = IMax;
   }
+  
+  // Compute the input voltage from connected neighbours (if any)
+  // vInput = (k / N) * \sum_j (v_j - v_i)
+  // where k = global coupling strength
+  //       N = num connected neighbours,
+  //       i = current node
+  //       j = neighbour node
+  //       v = voltage (v[0])
+  nConnections = 0;
+  vInput = 0;
+  for (int i = 0; i < 3; i++) {
+    if (Tn.isConnected(i + 1)) {
+      vInput = vInput + (Tn.analogRead(i + 1) - vOld[0]);
+      nConnections++;
+    }
+  }
+  if (nConnections > 0) {
+    vInput = k*vInput/nConnections;
+  }
+  
+  // Forward Euler
+  v[0] = vOld[0] + dt*(vOld[0] - (pow(vOld[0], 3.0))/3.0 - vOld[1] + I + vInput);
+  v[1] = vOld[1] + dt*(tauR*(vOld[0] + alpha - beta*vOld[1]));
   
   // Broadcast the voltage variable 'V' = v[0] to all connected
   // neighbouring nodes.
@@ -134,33 +134,47 @@ void loop () {
     Tn.analogWrite(i + 1, v[0]);
   }
   
-  // Glow red for high voltage, dark (slightly blue) for low voltage.
   // Artistic license... We will normalise and square the voltage for
   // a prettier effect.
-  Tn.colour(pow((v[0] - vRange[0])/(vRange[1] - vRange[0]), 2),
-    	      0.0,
-    	      0.15);
-   
-   //Serial.println(v[0]);
-   //printSOI();
-   //delay(5);
-}
-
-void printSOI() {
-  Serial.print("*Inputs*");
-  for (int i = 1; i <= 3; i++) {
-    Serial.print(" ");
-    Serial.print(Tn.isConnected(i));
-    Serial.print("|");
-    Serial.print(Tn.analogRead(i));
+  out = pow((v[0] - vRange[0])/(vRange[1] - vRange[0]), 2);
+  
+  // Using AUX for audio breaks the red LED so now we are green/blue  
+  // Glow green for high voltage, dark (slightly blue) for low voltage.
+  Tn.colour(0.0,
+    	    out,
+    	    0.15);
+  
+  // Just bitwise combine all the dip switches to select our 
+  // desired tone :)
+  dipBitMap = B001*Tn.dip1() + B010*Tn.dip2() + B100*Tn.dip3();
+  
+  /*
+  So, in terms of dip switches:
+  dip1 | dip2 | dip3
+    0  |  0   |  0  = OFF
+    1  |  0   |  0  = C
+    0  |  1   |  0  = D
+    1  |  1   |  0  = E
+    0  |  0   |  1  = F
+    1  |  0   |  1  = G
+    0  |  1   |  1  = A
+    1  |  1   |  1  = B  
+  */
+  
+  if(out > 0.25) {
+    // Play tone
+    if(dipBitMap > 0) {
+      // At least one tone spec is activated
+      tone(AUX_OUT, cMajor[dipBitMap - 1]);
+    } else {
+      noTone(AUX_OUT);
+    }  
+  } else {
+    // 0 0 0
+    noTone(AUX_OUT);
   }
   
-  Serial.print(" *DIP* ");
-  Serial.print(Tn.dip1());
-  Serial.print("|");
-  Serial.print(Tn.dip2());
-  Serial.print("|"); 
-  Serial.print(Tn.dip3());
-  
-  Serial.println();
+  //Serial.println(v[0]);
+  //printSOI();
+  //delay(1);
 }
