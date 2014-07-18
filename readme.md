@@ -35,18 +35,18 @@ Coupling is set to zero by default and so effects of coupling nodes together wil
 - If a piezo speaker is built into the node, and receives signal from the auxiliary output, a tone will be emitted as voltage passes a threshold.
   Thus, spiking neurons will elicit periodic beeping tones as they activate.
   The pitch of the tone can be set using all three dip switches:
-  ```
-  |dip1 | dip2 | dip3      |
-  |-----|------|-----------|
-  |  0  |  0   |  0  = OFF |
-  |  1  |  0   |  0  = C   |
-  |  0  |  1   |  0  = D   |
-  |  1  |  1   |  0  = E   |
-  |  0  |  0   |  1  = F   |
-  |  1  |  0   |  1  = G   |
-  |  0  |  1   |  1  = A   |
-  |  1  |  1   |  1  = B   |
-  ```
+  
+  |dip1 | dip2 | dip3 | status |
+  |-----|------|------|--------|
+  |  0  |  0   |  0   | OFF    |
+  |  1  |  0   |  0   | C      |
+  |  0  |  1   |  0   | D      |
+  |  1  |  1   |  0   | E      |
+  |  0  |  0   |  1   | F      |
+  |  1  |  0   |  1   | G      |
+  |  0  |  1   |  1   | A      |
+  |  1  |  1   |  1   | B      |
+
 
 ## Further information
 For further details, see for example:
