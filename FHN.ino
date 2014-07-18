@@ -55,7 +55,7 @@ double v[] = {1.0, 0.1};          // Current value of the two dynamic variables
 double vOld[] = {1.0, 0.1};       // Previous value of the two dynamic variables
 double vRange[] = {-2.2, 3.0};    // Range of 'V' within which to constrain (for colouring etc)
 
-double dt = 0.05;  // Timestep for Euler integrator
+double dt = 0.1;  // Timestep for Euler integrator
 
 // ---------- TN LIBRARY
 // (note for A):
@@ -66,19 +66,19 @@ double dt = 0.05;  // Timestep for Euler integrator
 TN Tn = TN(-3.5, 3.5);
 
 // ---------- OUTPUT
-double out = 0.0;
+double out = 0.0;    // Hold our scaled output for audio and LED
 
 // ---------- SOUND FROM PIEZO
-byte dipBitMap = 0;
+byte dipBitMap = 0;  // Bit map to store the state of the three dip switches
+// C Major in Hz (C, D, E, F, G, A, B)
+// [dipBitMap - 1] will allow selection of frequency, with dips 0|0|0 producing no sound
 double cMajor[] = {261.626, 293.665, 329.628, 349.228, 391.995, 440, 493.883};
 
 void setup () {
   // Initialise the serial output port for logging etc.
   //Serial.begin(115200);
-  
   pinMode(AUX_OUT, OUTPUT);
 }
-
 
 void loop () {
   // Set up the coupling parameter k
@@ -176,5 +176,5 @@ void loop () {
   
   //Serial.println(v[0]);
   //printSOI();
-  //delay(1);
+  delay(1);
 }
